@@ -4,5 +4,5 @@ Quick hack for protocol and receiver testing.  This is a PSoC Creator 4.1 projec
 The protocol_chk project controls deviation supported radio chips and runs deviation protocol files (slightly modified).
 
 
-The receiver_chk protocol decodes PPM, PWM, and SBUS.  Results are sent to the USB serial port.
+The receiver_chk project decodes PPM, PWM, and SBUS.  Results are sent to the USB serial port.
 
