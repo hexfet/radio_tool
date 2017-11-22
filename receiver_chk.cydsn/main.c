@@ -29,6 +29,10 @@ void printd(char *str, uint32 data) {
 #define MAX_CHANS 18
 static volatile int32 Channels[MAX_CHANS];
 static volatile uint8 number_of_channels;
+static volatile struct {
+  int32 minimum;    // min pulse width
+  int32 maximum;    // max pulse width
+} channel_info[MAX_CHANS];
 
 static uint16 (*proto_callback)(volatile int32[]) = NULL;
 CY_ISR(proto_timer_interrupt_service) {
@@ -53,6 +57,10 @@ CY_ISR(ppm_timer_interrupt_service) {
     curr_channel = 0;
   } else {
 //    Channels[curr_channel++] = ((int)width - 1500) * 20;
+    if ((int)width < channel_info[curr_channel].minimum)
+      channel_info[curr_channel].minimum = (int)width;
+    if ((int)width > channel_info[curr_channel].maximum)
+      channel_info[curr_channel].maximum = (int)width;
     Channels[curr_channel++] = (int)width;
     curr_channel %= MAX_CHANS;
   }
@@ -100,6 +108,12 @@ void proto_run(void (*init)(uint8 tx_addr[]), uint16 (*callback)(volatile int32 
       case 'q':
         proto_timer_int_Disable();
         loop = 0;
+        break;
+      case 'z':
+        for (int i=0; i < MAX_CHANS; i++) {
+          channel_info[i].minimum = 50000;
+          channel_info[i].maximum = 0;
+        }
       }
     }
   }
@@ -122,9 +136,32 @@ uint16 ppm_monitor(volatile int32 channels[])
   }
   if (nc) snprintf(pc, size, "   max_width %ld, channels %d\r\n", (int32)max_width, nc);
   USB_serial_UartPutString(outbuf);   
+  nc = 0;
   return 30000;
 }
 
+
+uint16 ppm_jitter_monitor(volatile int32 channels[])
+{
+  (void)channels;
+  static char outbuf[127];
+  char *pc = outbuf;
+  int8 nc;
+  int32 chars_out;
+  int size = sizeof outbuf;
+
+  nc = number_of_channels <= 5 ? number_of_channels : 5;
+  for (int i=0; i < nc; i++) {
+    chars_out = snprintf(pc, size, "%ld/%ld/%ld ", channel_info[i].minimum,
+                channel_info[i].maximum,channel_info[i].maximum-channel_info[i].minimum);
+    pc += chars_out;
+    size -= chars_out;
+  }
+  if (nc) snprintf(pc, size, "\r\n");
+  USB_serial_UartPutString(outbuf);   
+  nc = 0;
+  return 30000;
+}
 
 uint16 sbus_monitor() {
   static char outbuf[256];
@@ -237,15 +274,28 @@ int main() {
       proto_run(NULL, ppm_monitor);
       break;    
     case '2':
+      USB_serial_UartPutString("PPM jitter monitor - min/max/diff in microseconds\r\n");
+      ppm_timer_Stop();
+      ppm_timer_SetCaptureMode(ppm_timer_TRIG_RISING);
+      ppm_timer_int_StartEx(ppm_timer_interrupt_service);
+      number_of_channels = 0;
+      ppm_timer_Start();
+      proto_run(NULL, ppm_jitter_monitor);
+      break;       
+    case '3':
       USB_serial_UartPutString("PWM monitor - pulse width in microseconds\r\n");
       ppm_timer_Stop();
       ppm_timer_SetCaptureMode(ppm_timer_TRIG_RISING);
       ppm_timer_int_StartEx(pwm_timer_interrupt_service);
+      for (int i=0; i < MAX_CHANS; i++) {
+        channel_info[i].minimum = INT_MAX;
+        channel_info[i].maximum = 0;
+      }
       number_of_channels = 0;
       ppm_timer_Start();
       proto_run(NULL, ppm_monitor);
       break;
-    case '3':
+    case '4':
       USB_serial_UartPutString("SBUS monitor\r\n");
       sbus_monitor();
       break;    
@@ -259,8 +309,9 @@ int main() {
     case '?':
     case 'h':
       USB_serial_UartPutString("1 - PPM monitor\r\n"); 
-      USB_serial_UartPutString("2 - PWM monitor\r\n");      
-      USB_serial_UartPutString("3 - SBUS monitor\r\n");      
+      USB_serial_UartPutString("2 - PPM jitter monitor\r\n");
+      USB_serial_UartPutString("3 - PWM monitor\r\n");      
+      USB_serial_UartPutString("4 - SBUS monitor\r\n");      
       USB_serial_UartPutString("r - reset\r\n");
       USB_serial_UartPutString("l - led\r\n");
       USB_serial_UartPutString("b - enter bootloader\r\n");
