@@ -58,7 +58,7 @@ CY_ISR(ppm_timer_interrupt_service) {
   static uint32 prev_capture, prev_num_channels, sync_count;
   static uint32 curr_channel;
   uint32 curr_capture = ppm_timer_ReadCapture();
-  uint32 width = ((curr_capture - prev_capture) % 0xffff) / 3;   // microseconds - divisor from C/T clock
+  uint32 width = ((curr_capture - prev_capture - 12) % 0xffff) / 3;   // microseconds - divisor from C/T clock
   prev_capture = curr_capture;
 
   if (width > max_width) max_width = width;
