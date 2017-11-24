@@ -34,6 +34,14 @@ static volatile struct {
   int32 maximum;    // max pulse width
 } channel_info[MAX_CHANS];
 
+void reset_channel_info() {
+  for (int i=0; i < MAX_CHANS; i++) {
+    channel_info[i].minimum = 50000;
+    channel_info[i].maximum = 0;
+  }
+}
+
+
 static uint16 (*proto_callback)(volatile int32[]) = NULL;
 CY_ISR(proto_timer_interrupt_service) {
   if (proto_callback) proto_timer_WritePeriod( proto_callback(Channels) );
@@ -41,19 +49,28 @@ CY_ISR(proto_timer_interrupt_service) {
 }
 
 static uint32 max_width;
+static volatile int32 interrupting;
+static volatile uint32 ppm_sync;
 CY_ISR(ppm_timer_interrupt_service) {
-  Pin_sigout_Write(1);
   ppm_timer_ClearInterrupt(ppm_timer_INTR_MASK_CC_MATCH);
+  interrupting = 1;
   
-  static uint32 prev_capture;
+  static uint32 prev_capture, prev_num_channels, sync_count;
   static uint32 curr_channel;
   uint32 curr_capture = ppm_timer_ReadCapture();
   uint32 width = ((curr_capture - prev_capture) % 0xffff) / 3;   // microseconds - divisor from C/T clock
   prev_capture = curr_capture;
-  
+
   if (width > max_width) max_width = width;
   if (width > 4500) {
+    prev_num_channels = number_of_channels;
     number_of_channels = curr_channel;
+    if (number_of_channels == prev_num_channels) {
+      if (sync_count < 50) sync_count++;
+    } else {
+      sync_count = 0;
+    }
+    ppm_sync = sync_count >= 3;
     curr_channel = 0;
   } else {
 //    Channels[curr_channel++] = ((int)width - 1500) * 20;
@@ -64,7 +81,6 @@ CY_ISR(ppm_timer_interrupt_service) {
     Channels[curr_channel++] = (int)width;
     curr_channel %= MAX_CHANS;
   }
-  Pin_sigout_Write(0);
 }
 
 CY_ISR(pwm_timer_interrupt_service) {
@@ -110,10 +126,7 @@ void proto_run(void (*init)(uint8 tx_addr[]), uint16 (*callback)(volatile int32 
         loop = 0;
         break;
       case 'z':
-        for (int i=0; i < MAX_CHANS; i++) {
-          channel_info[i].minimum = 50000;
-          channel_info[i].maximum = 0;
-        }
+        reset_channel_info();
       }
     }
   }
@@ -124,19 +137,23 @@ uint16 ppm_monitor(volatile int32 channels[])
 {
   static char outbuf[127];
   char *pc = outbuf;
-  int8 nc;
   int32 chars_out;
   int size = sizeof outbuf;
 
-  nc = number_of_channels;
-  for (int i=0; i < nc; i++) {
-    chars_out = snprintf(pc, size, "%6ld ", (int32)channels[i]);
-    pc += chars_out;
-    size -= chars_out;
+  if (!interrupting) {
+    snprintf(pc, size, "Pulses not being received\r");
+  } else if (!ppm_sync) {
+      snprintf(pc, size, "Synchronizing: nc %ld\r\n", (int32)number_of_channels);
+  } else {
+    for (int i=0; i < number_of_channels; i++) {
+      chars_out = snprintf(pc, size, "%6ld ", (int32)channels[i]);
+      pc += chars_out;
+      size -= chars_out;
+    }
+    snprintf(pc, size, "   max_width %ld, channels %d\r\n", (int32)max_width, number_of_channels);
   }
-  if (nc) snprintf(pc, size, "   max_width %ld, channels %d\r\n", (int32)max_width, nc);
   USB_serial_UartPutString(outbuf);   
-  nc = 0;
+  interrupting = 0;
   return 30000;
 }
 
@@ -146,20 +163,25 @@ uint16 ppm_jitter_monitor(volatile int32 channels[])
   (void)channels;
   static char outbuf[127];
   char *pc = outbuf;
-  int8 nc;
   int32 chars_out;
   int size = sizeof outbuf;
 
-  nc = number_of_channels <= 5 ? number_of_channels : 5;
-  for (int i=0; i < nc; i++) {
-    chars_out = snprintf(pc, size, "%ld/%ld/%ld ", channel_info[i].minimum,
-                channel_info[i].maximum,channel_info[i].maximum-channel_info[i].minimum);
-    pc += chars_out;
-    size -= chars_out;
+  if (!interrupting) {
+    snprintf(pc, size, "Pulses not being received\r");
+  } else if (!ppm_sync) {
+      snprintf(pc, size, "Synchronizing: nc %ld\r\n", (int32)number_of_channels);
+      reset_channel_info();
+  } else {
+    for (int i=0; i < number_of_channels; i++) {
+      chars_out = snprintf(pc, size, "%ld/%ld/%ld ", channel_info[i].minimum,
+                  channel_info[i].maximum,channel_info[i].maximum-channel_info[i].minimum);
+      pc += chars_out;
+      size -= chars_out;
+    }
+    snprintf(pc, size, "\r\n");
   }
-  if (nc) snprintf(pc, size, "\r\n");
   USB_serial_UartPutString(outbuf);   
-  nc = 0;
+  interrupting = 0;
   return 30000;
 }
 
@@ -252,8 +274,6 @@ int main() {
   proto_timer_Start();
   UART_in_Start();
 
-
- 
   for(;;) {
 
     /* Get received character or zero if nothing has been received yet */
