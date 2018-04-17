@@ -185,12 +185,19 @@ uint16 ppm_jitter_monitor(volatile int32 channels[])
   return 30000;
 }
 
-uint16 sbus_monitor() {
+#define SBUS_NORMAL 0
+#define SBUS_INVERT 1
+uint16 sbus_monitor(uint8 polarity) {
   static char outbuf[256];
   char *pc = outbuf;
   int32 chars_out;
   int size = sizeof outbuf;
 
+  if (polarity)
+    Invert_input_Write(1);
+  else
+    Invert_input_Write(0);
+    
   static uint8 inbuf[25];
   static uint8 inbuf_idx = 0;
   uint32 c;
@@ -316,9 +323,13 @@ int main() {
       proto_run(NULL, ppm_monitor);
       break;
     case '4':
-      USB_serial_UartPutString("SBUS monitor\r\n");
-      sbus_monitor();
+      USB_serial_UartPutString("SBUS monitor - normal\r\n");
+      sbus_monitor(SBUS_NORMAL);
       break;    
+    case '5':
+      USB_serial_UartPutString("SBUS monitor - inverted\r\n");
+      sbus_monitor(SBUS_INVERT);
+      break; 
     case 'l':
       P1_6_Write(led ^= 1);
       break;
@@ -331,7 +342,8 @@ int main() {
       USB_serial_UartPutString("1 - PPM monitor\r\n"); 
       USB_serial_UartPutString("2 - PPM jitter monitor\r\n");
       USB_serial_UartPutString("3 - PWM monitor\r\n");      
-      USB_serial_UartPutString("4 - SBUS monitor\r\n");      
+      USB_serial_UartPutString("4 - SBUS monitor - normal polarity\r\n");      
+      USB_serial_UartPutString("5 - SBUS monitor - inverted polarity\r\n");
       USB_serial_UartPutString("r - reset\r\n");
       USB_serial_UartPutString("l - led\r\n");
       USB_serial_UartPutString("b - enter bootloader\r\n");
