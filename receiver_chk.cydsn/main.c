@@ -194,10 +194,10 @@ uint16 sbus_monitor(uint8 polarity) {
   int size = sizeof outbuf;
 
   if (polarity)
-    Invert_input_Write(1);
+    Control1_Write(1);
   else
-    Invert_input_Write(0);
-    
+    Control1_Write(0);
+  
   static uint8 inbuf[25];
   static uint8 inbuf_idx = 0;
   uint32 c;
@@ -213,7 +213,8 @@ uint16 sbus_monitor(uint8 polarity) {
     
     while (UART_in_SpiUartGetRxBufferSize()) {
       c = UART_in_UartGetByte();
-// USB_serial_UartPutChar(c);
+//USB_serial_UartPutChar(c);
+//USB_serial_UartPutChar(inbuf_idx);
       switch (inbuf_idx) {
       case 24:
     		if (c == 0x00) {
@@ -291,6 +292,8 @@ int main() {
     }
   
     switch(ch) {
+    case 0u:
+      break;
     case '1':
       USB_serial_UartPutString("PPM monitor - pulse width in microseconds\r\n");
       ppm_timer_Stop();
@@ -339,6 +342,7 @@ int main() {
       Bootloadable_1_Load();
     case '?':
     case 'h':
+    default:
       USB_serial_UartPutString("1 - PPM monitor\r\n"); 
       USB_serial_UartPutString("2 - PPM jitter monitor\r\n");
       USB_serial_UartPutString("3 - PWM monitor\r\n");      
