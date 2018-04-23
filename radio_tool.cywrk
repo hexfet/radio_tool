@@ -3,7 +3,7 @@
 <!--This file is machine generated and read. It is not intended to be edited by hand.-->
 <!--Due to this, there is no schema for this file.-->
 <CyGuid_2867d519-54d2-4c01-9830-c51cb08bc3dd type_name="CyDesigner.Common.ProjMgmt.Model.CyPrjMgmtWorkspaceSerialize" version="5" xml_contents_version="3" name="radio_tool" persistent="radio_tool.cywrk" platform="NOT_USED">
-<current_project name=".\receiver_chk.cydsn\receiver_chk.cyprj" />
+<current_project name=".\protocol_chk.cydsn\protocol_chk.cyprj" />
 <wrkspc_folders />
 <files>
 <CyGuid_8b8ab257-35d3-4473-b57b-36315200b38b type_name="CyDesigner.Common.ProjMgmt.Model.CyPrjMgmtFileSerialize" version="3" xml_contents_version="1">
@@ -20,13 +20,15 @@
 <v>.\Bootloader_UART.cydsn\Bootloader_UART.cyprj</v>
 </projects>
 <workspace_id v="c1b5f4ca-34fe-4a48-a392-6bc30f9d55ce" />
-<WriteAppVersionLastSavedWith v="4.1.0.3210" />
-<WriteAppMarketingVersionLastSavedWith v="4.1 Update 1" />
+<WriteAppVersionLastSavedWith v="4.2.0.641" />
+<WriteAppMarketingVersionLastSavedWith v="4.2" />
 <CyGuid_dcbd9771-0334-43dc-9cc3-fe99dc3c5316 type_name="CyDesigner.Common.ProjMgmt.Model.CyPrjMgmtWorkspaceSerialize+CyPrjDependencyList" version="4">
 <wrkspc_dependencies />
 </CyGuid_dcbd9771-0334-43dc-9cc3-fe99dc3c5316>
 <CyGuid_63b68103-67f5-4406-8da6-5c8625765b82 type_name="CyDesigner.Common.ProjMgmt.Model.CyPrjMgmtWorkspaceSerialize+CyIgnoredSystemDepsList" version="1">
-<wrkspc_dependencies />
+<wrkspc_dependencies>
+<wrkspc_dependency project="protocol_chk.cydsn\protocol_chk.cyprj" dependency="..\..\..\Documents\PSoC Creator\4.1\Downloads ( 4.1).cylib\Downloads ( 4.1).cyprj" />
+</wrkspc_dependencies>
 </CyGuid_63b68103-67f5-4406-8da6-5c8625765b82>
 </CyGuid_2867d519-54d2-4c01-9830-c51cb08bc3dd>
 </CyXmlSerializer>
