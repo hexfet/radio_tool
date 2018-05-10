@@ -37,6 +37,7 @@
       <Data key="43ec2fa1-bf22-4b71-9477-b6ca7b97f0b0/78e33e5d-45ea-4b75-88d5-73274e8a7ce4" value="USB_serial_rx" />
       <Data key="552faf00-97dc-47bf-ad14-15574b2c6e9b" value="DUT_mosi" />
       <Data key="36653195-c0cf-4359-90fe-d853b3900ca7" value="DUT_sclk" />
+      <Data key="a26cd752-dfe5-4276-945b-2c6c767a8daa" value="UART_output" />
       <Data key="a96cb437-e1d3-4bde-b48c-89b08ffdc0fc" value="DUT_rst" />
       <Data key="b976d6ad-d002-4f0b-9d2f-70c8e32bd982" value="Pin_sigout" />
       <Data key="bd84fc7e-5c5c-4837-b258-0f131a94a612" value="DUT_ss" />
@@ -1493,6 +1494,11 @@
     <Group key="36653195-c0cf-4359-90fe-d853b3900ca7">
       <Group key="0">
         <Data key="Port Format" value="0,1" />
+      </Group>
+    </Group>
+    <Group key="a26cd752-dfe5-4276-945b-2c6c767a8daa">
+      <Group key="0">
+        <Data key="Port Format" value="3,1" />
       </Group>
     </Group>
     <Group key="a96cb437-e1d3-4bde-b48c-89b08ffdc0fc">

@@ -32,90 +32,78 @@ void DUT_reset() {
   CyDelay(20);
 }
 
-
 // Scan through received data looking for pattern match
-void DUT_getfreq(uint8 *freqs) {
-  static const uint8 match_data[] = {0x0F};
+uint32 DUT_wait_radioid() {
+  static const uint8 match_data[] = {0x00, 0x06};
   uint8 match_idx = 0;
-  uint8 freq_count = 0;
+  uint8 bytes_found = 0;
   uint8 spi_data;
+  uint32 radio_id = 0;
+//char outbuf[10];
   
   DUT_SPI_ClearRxBuffer();
  
-// look for 16 unique frequencies
-  while (freq_count < 16) {
+// look for 06 command then capture following 4 bytes
+  for (;;) {
+    if (!DUT_SPI_GetRxBufferSize()) {
+      CyDelayUs(30);
+      continue;
+    }
     spi_data = DUT_SPI_ReadRxData();
-// snprintf(outbuf, sizeof(outbuf), "%02X", spi_data);
-// USB_serial_UartPutString(outbuf);
+//snprintf(outbuf, sizeof(outbuf), "%02X", spi_data);
+//USB_serial_UartPutString(outbuf);
     if (match_idx >= sizeof(match_data)) {
-      if (!memchr(freqs, spi_data, freq_count)) {
-        *freqs++ = spi_data;
-        freq_count += 1;
+      radio_id = (radio_id << 8) + spi_data;
+      bytes_found += 1;
+      if (bytes_found == sizeof radio_id) {
+        if (radio_id != 0xac59a453) break;   // ignore known bind value as it appears sometimes after bind
+        bytes_found = 0;
+        match_idx = 0;
       }
-      match_idx = 0;
     } else if (spi_data == match_data[match_idx]) {
       match_idx += 1;
-    } else {
+    } else if (match_idx > 0 && match_data[match_idx-1] != spi_data) {   // this logic only works for match_data size 2
+      bytes_found = 0;
       match_idx = 0;
     }
   }
+  return radio_id;
 }
 
-void rc_send(const uint8 *bytes, const int len) {
-  UART_RC_SpiUartPutArray((const uint8 *)"B", 1);
-  UART_RC_SpiUartPutArray(bytes, len);
+void rx_bind(const uint16 rxid) {
+  char buffer[80];
+  
+  snprintf(buffer, sizeof buffer, "C%0x04X\r", rxid);
+  UART_RC_SpiUartPutArray((const uint8 *)buffer, strlen(buffer));
 }
 
-uint8 rc_recv(uint8 *bytes, const int len, const uint32 seconds) {
-  uint8 *p = bytes;
-  uint8 count = 0;
-  uint32 timeout = 10 * seconds;
-
-  while (timeout--) {
-    if (UART_RC_SpiUartGetRxBufferSize() >= 1) {
-      *p = UART_RC_SpiUartReadRxData();
-      count++;
-      if (count == len) break;
-    } else {
-      CyDelayUs(100);
-    }
-  }
-  return count;
-}
 
 void bugs3_capture() {
-  uint8 tx_id[3];
-  uint8 rcbuf[16], result;
-  char outbuf[256], *outp, *endbuf;
-  uint8 frequencies[16];
+  uint32 radio_id;
+  uint16 rxid;
+  uint8 loop = 1;
+  char c;
+  char *outp, *endbuf, outbuf[80];
+      
+  for(rxid=0; loop && (rxid < 0xffff); rxid++) {
+    if (USB_serial_SpiUartGetRxBufferSize()) {
+      switch (c=USB_serial_UartGetChar()) {
+      case 'q':
+        loop = 0;
+        continue;
+      }
+    }
+    
+    DUT_reset();                     // reset bugs3 TX with bind button depressed
+    rx_bind(rxid);                   // tell deviation to bind with this receiver id
+    radio_id = DUT_wait_radioid();   // capture the radio id set by stock tx
   
-  tx_id[0] = 0;
-  tx_id[1] = 0;
-  tx_id[2] = 0;
-  
-  for(;;) {
-    proto_timer_int_Disable();
-    
-    DUT_reset();
-    rc_send(tx_id, sizeof(tx_id));
-    
-    // wait for bound message
-    result = rc_recv(rcbuf, 1, 10);
-    if (!result) continue;
-    
-    DUT_getfreq(frequencies);
-    
     outp = outbuf;
     endbuf = outbuf + sizeof outbuf;
-    outp += snprintf(outp, endbuf-outp, "%02X%02X%02X,", tx_id[2], tx_id[1], tx_id[0]);
-    for (int i=0; i < 16; i++)
-      outp += snprintf(outp, endbuf-outp, "%02X", frequencies[i]);
+    outp += snprintf(outp, endbuf-outp, "%04X,%08lX", rxid, radio_id);
     snprintf(outp, endbuf-outp, "\r\n");
     USB_serial_UartPutString(outbuf);
 
-    tx_id[0] += 1;
-    if (tx_id[0] == 0) tx_id[1] += 1;
-    if (tx_id[1] == 0) tx_id[2] += 1;
   }
 }
 
@@ -154,11 +142,14 @@ int main() {
       break;
     case 'r':
       CySoftwareReset();
+    case 'b':
+      Bootloadable_1_Load();
     case '?':
     case 'h':
       USB_serial_UartPutString("1 - bugs3 capture\r\n");
       USB_serial_UartPutString("r - reset\r\n");
       USB_serial_UartPutString("l - led\r\n");
+      USB_serial_UartPutString("b - enter bootloader\r\n");
       break;
     }
   }
