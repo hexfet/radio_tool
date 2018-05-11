@@ -73,7 +73,7 @@ uint32 DUT_wait_radioid() {
 void rx_bind(const uint16 rxid) {
   char buffer[80];
   
-  snprintf(buffer, sizeof buffer, "C%0x04X\r", rxid);
+  snprintf(buffer, sizeof buffer, "C%04X\r", rxid);
   UART_RC_SpiUartPutArray((const uint8 *)buffer, strlen(buffer));
 }
 
@@ -84,8 +84,9 @@ void bugs3_capture() {
   uint8 loop = 1;
   char c;
   char *outp, *endbuf, outbuf[80];
-      
-  for(rxid=0; loop && (rxid < 0xffff); rxid++) {
+     
+  rxid=0;
+  do {
     if (USB_serial_SpiUartGetRxBufferSize()) {
       switch (c=USB_serial_UartGetChar()) {
       case 'q':
@@ -93,7 +94,7 @@ void bugs3_capture() {
         continue;
       }
     }
-    
+   
     DUT_reset();                     // reset bugs3 TX with bind button depressed
     rx_bind(rxid);                   // tell deviation to bind with this receiver id
     radio_id = DUT_wait_radioid();   // capture the radio id set by stock tx
@@ -104,7 +105,8 @@ void bugs3_capture() {
     snprintf(outp, endbuf-outp, "\r\n");
     USB_serial_UartPutString(outbuf);
 
-  }
+    rxid++;
+  } while ( loop && rxid);
 }
 
 
