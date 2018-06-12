@@ -406,7 +406,6 @@ int main() {
   UART_in_Start();
 
   for(;;) {
-
     /* Get received character or zero if nothing has been received yet */
     ch = USB_serial_UartGetChar(); 
     if (ch != 0u) {
