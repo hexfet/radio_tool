@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include "protocols.h"
 
+static uint8 led;
 
 void printd(char *str, uint32 data) {
   char outbuf[50];
@@ -89,7 +90,7 @@ CY_ISR(pwm_timer_interrupt_service) {
   uint32 curr_capture = ppm_timer_ReadCapture();
   uint32 width = ((curr_capture - prev_capture) % 0xffff) / 3;   // microseconds - divisor from C/T clock
   prev_capture = curr_capture;
-  
+
   if (int_mode == ppm_timer_TRIG_RISING) {
     ppm_timer_SetCaptureMode(ppm_timer_TRIG_FALLING);
     int_mode = ppm_timer_TRIG_FALLING;
@@ -101,6 +102,8 @@ CY_ISR(pwm_timer_interrupt_service) {
   }
 
   ppm_timer_ClearInterrupt(ppm_timer_INTR_MASK_CC_MATCH);
+  interrupting = 1;
+  ppm_sync = 1;
 }
 
 
@@ -270,9 +273,7 @@ uint16 sbus_monitor(uint8 polarity) {
   return 6000;
 }
 
-
 int main() {
-  uint8 led = 0;
   uint8 ch;
   
   CyGlobalIntEnable; /* enable global interrupts. */
