@@ -287,9 +287,7 @@ uint16 sbus_latency(uint8 polarity) {
   int triggered = 0, trigger_out = 0;
   int32 chan0_value;
   uint32 elapsed, min_elapsed, max_elapsed;
-  char *pc = outbuf;
-  int32 chars_out;
-  int size = sizeof outbuf;
+
 
   if (polarity)
     Control1_Write(1);
@@ -356,8 +354,9 @@ uint16 sbus_latency(uint8 polarity) {
 //    			failsafe     = (inbuf[23] & 8) ? 1 : 0;
           
           if (triggered && (abs(chan0_value - Channels[0]) > 300)) {
-            triggered = 0;
             elapsed = sbus_clock;
+            triggered = 0;
+            chan0_value = Channels[0];
             if (elapsed < min_elapsed) min_elapsed = elapsed;
             if (elapsed > max_elapsed) max_elapsed = elapsed;
 
@@ -365,6 +364,10 @@ uint16 sbus_latency(uint8 polarity) {
             USB_serial_UartPutString(outbuf);
             while (USB_serial_SpiUartGetTxBufferSize()) CyDelayUs(10);
           }
+#if 0
+  char *pc = outbuf;
+  int32 chars_out;
+  int size = sizeof outbuf; 
           for (int i=0; i < MAX_CHANS; i++) {
             chars_out = snprintf(pc, size, "%4ld ", (int32)Channels[i]);
             pc += chars_out;
@@ -373,10 +376,13 @@ uint16 sbus_latency(uint8 polarity) {
           chars_out = snprintf(pc, size, "\n\r");
           USB_serial_UartPutString(outbuf);
           while (USB_serial_SpiUartGetTxBufferSize()) CyDelayUs(10);          
+#endif
         }
         inbuf_idx = 0;
+#if 0        
         pc = outbuf;
         size = sizeof outbuf;
+#endif
         UART_in_SpiUartClearRxBuffer();
         break;
               
