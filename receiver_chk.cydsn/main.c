@@ -273,6 +273,125 @@ uint16 sbus_monitor(uint8 polarity) {
   return 6000;
 }
 
+static uint32 sbus_clock;
+uint16 sbus_latency_timer(volatile int32 channels[])
+{
+  (void)channels;
+  
+  sbus_clock += 500;
+  return 500;
+}
+
+uint16 sbus_latency(uint8 polarity) {
+  static char outbuf[256];
+  int triggered = 0, trigger_out = 0;
+  int32 chan0_value;
+  uint32 elapsed, min_elapsed, max_elapsed;
+  char *pc = outbuf;
+  int32 chars_out;
+  int size = sizeof outbuf;
+
+  if (polarity)
+    Control1_Write(1);
+  else
+    Control1_Write(0);
+  Pin_sigout_Write(trigger_out);
+  
+  // run timer on protocol timer interrupt
+  proto_timer_int_Disable();  // just in case
+  proto_timer_int_ClearPending();
+  proto_callback = sbus_latency_timer;
+  proto_timer_int_Enable();  
+  
+  static uint8 inbuf[25];
+  static uint8 inbuf_idx = 0;
+  uint32 c;
+  uint8 loop=1;
+  while(loop) {
+    if (USB_serial_SpiUartGetRxBufferSize()) {
+      switch (c=USB_serial_UartGetChar()) {
+      case 'q':
+        loop = 0;
+        continue;
+      }
+    }
+    
+    if (!triggered) {
+      CyDelay(rand() % 1024);
+      trigger_out ^= 1;
+      Pin_sigout_Write(trigger_out);
+      triggered = 1;
+      sbus_clock = 0;
+      chan0_value = Channels[0];
+    }
+    
+    while (UART_in_SpiUartGetRxBufferSize()) {
+      c = UART_in_UartGetByte();
+//USB_serial_UartPutChar(c);
+//USB_serial_UartPutChar(inbuf_idx);
+      switch (inbuf_idx) {
+      case 24:
+    		if (c == 0x00) {
+    			inbuf[inbuf_idx] = c;
+
+          uint8 byte_in_sbus = 1;
+    			uint8 bit_in_sbus = 0;
+    			uint8 ch = 0;
+    			uint8 bit_in_channel = 0;
+          memset((void *)Channels, 0, sizeof Channels);
+          
+    			// channel data is interleaved and bit-reversed
+          for (int i=0; i < 176; i++) {
+    				if (inbuf[byte_in_sbus] & (1<<bit_in_sbus)) {
+    						Channels[ch] |= (1<<bit_in_channel);
+    				}
+    				bit_in_sbus = (bit_in_sbus + 1) % 8;
+            if (bit_in_sbus == 0) byte_in_sbus++;
+    				bit_in_channel = (bit_in_channel + 1) % 11;
+            if (bit_in_channel == 0) ch++;            
+    			}
+          Channels[16] = (inbuf[23] & 1) ? 2000 : 1000;
+          Channels[17] = (inbuf[23] & 2) ? 2000 : 1000;
+//    			frame_loss   = (inbuf[23] & 4) ? 1 : 0;
+//    			failsafe     = (inbuf[23] & 8) ? 1 : 0;
+          
+          if (triggered && (abs(chan0_value - Channels[0]) > 300)) {
+            triggered = 0;
+            elapsed = sbus_clock;
+            if (elapsed < min_elapsed) min_elapsed = elapsed;
+            if (elapsed > max_elapsed) max_elapsed = elapsed;
+
+            snprintf(outbuf, sizeof outbuf, "%lu, %lu, %lu \n\r", elapsed, min_elapsed, max_elapsed);
+            USB_serial_UartPutString(outbuf);
+            while (USB_serial_SpiUartGetTxBufferSize()) CyDelayUs(10);
+          }
+          for (int i=0; i < MAX_CHANS; i++) {
+            chars_out = snprintf(pc, size, "%4ld ", (int32)Channels[i]);
+            pc += chars_out;
+            size -= chars_out;
+          }
+          chars_out = snprintf(pc, size, "\n\r");
+          USB_serial_UartPutString(outbuf);
+          while (USB_serial_SpiUartGetTxBufferSize()) CyDelayUs(10);          
+        }
+        inbuf_idx = 0;
+        pc = outbuf;
+        size = sizeof outbuf;
+        UART_in_SpiUartClearRxBuffer();
+        break;
+              
+      case 0:
+        if (c != 0x0f) break;
+        // intentional fall-through
+      default:
+        inbuf[inbuf_idx++] = c;
+      }
+    }
+
+  }
+  return 6000;
+}
+
 int main() {
   uint8 ch;
   
@@ -334,6 +453,14 @@ int main() {
       USB_serial_UartPutString("SBUS monitor - inverted\r\n");
       sbus_monitor(SBUS_INVERT);
       break; 
+    case '6':
+      USB_serial_UartPutString("SBUS latency - normal\r\n");
+      sbus_latency(SBUS_NORMAL);
+      break;
+    case '7':
+      USB_serial_UartPutString("SBUS latency - inverted\r\n");
+      sbus_latency(SBUS_INVERT);
+      break;       
     case 'l':
       P1_6_Write(led ^= 1);
       break;
@@ -349,6 +476,8 @@ int main() {
       USB_serial_UartPutString("3 - PWM monitor\r\n");      
       USB_serial_UartPutString("4 - SBUS monitor - normal polarity\r\n");      
       USB_serial_UartPutString("5 - SBUS monitor - inverted polarity\r\n");
+      USB_serial_UartPutString("6 - SBUS latency normal - P1.4 is trigger out\r\n");
+      USB_serial_UartPutString("7 - SBUS latency inverted - P1.4 is trigger out\r\n");
       USB_serial_UartPutString("r - reset\r\n");
       USB_serial_UartPutString("l - led\r\n");
       USB_serial_UartPutString("b - enter bootloader\r\n");
