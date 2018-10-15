@@ -307,6 +307,12 @@ uint16 sbus_latency(uint8 polarity) {
         min_elapsed = UINT_MAX;
         max_elapsed = 0;
         break;
+      case '+':
+        trigger_count++;
+        break;
+      case '-':
+        trigger_count--;
+        break;
       case 'q':
         loop = 0;
         continue;
@@ -370,11 +376,11 @@ size = sizeof outbuf;
             elapsed = sbus_clock - FreeRun_ReadCounter();
             Pin_testout_Write(1);            
             triggered = -trigger_count;
-            if (trigger_count++ > 5000) trigger_count = 1;
+//TODO            if (trigger_count++ > 5000) trigger_count = 1;
             if (elapsed < min_elapsed) min_elapsed = elapsed;
             if (elapsed > max_elapsed) max_elapsed = elapsed;
 
-            snprintf(outbuf, sizeof outbuf, "%d: %lu, %lu, %lu \n\r", trigger_count, elapsed, min_elapsed, max_elapsed);            
+            snprintf(outbuf, sizeof outbuf, "%d: %lu, %lu, %lu \n\r", -triggered, elapsed, min_elapsed, max_elapsed);            
             USB_serial_UartPutString(outbuf);
             while (USB_serial_SpiUartGetTxBufferSize()) CyDelayUs(10);
             UART_in_SpiUartClearRxBuffer();
